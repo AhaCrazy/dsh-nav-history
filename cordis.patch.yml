@@ -1,0 +1,7 @@
+# Bundle patch layer for dsh-nav-history.
+#
+# `insert` adds one Loader row. The Host half (index.js) is an empty plugin: all
+# behaviour lives in the browser half declared by `dsh.client` in package.json.
+- insert:
+    - id: nav-history
+      name: 'dsh-nav-history'

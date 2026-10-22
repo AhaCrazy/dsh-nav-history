@@ -1,0 +1,61 @@
+{
+  "name": "dsh-nav-history",
+  "version": "0.2.2",
+  "type": "module",
+  "description": "DeepSeek Harness plugin: global back/forward navigation history across whole-page panels and sessions, with a slim configurable bottom bar and browser-style shortcuts.",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "deepseek-harness",
+    "navigation",
+    "history",
+    "back",
+    "forward",
+    "cordis"
+  ],
+  "license": "MIT",
+  "author": "AhaCrazy",
+  "icon": "./icon.svg",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/AhaCrazy/dsh-nav-history.git"
+  },
+  "homepage": "https://github.com/AhaCrazy/dsh-nav-history#readme",
+  "bugs": {
+    "url": "https://github.com/AhaCrazy/dsh-nav-history/issues"
+  },
+  "meta": {
+    "title": "Nav History",
+    "description": "全局后退/前进：记录访问过的会话与整页面板，底栏可配置显示前后多个历史位置。"
+  },
+  "main": "index.js",
+  "exports": {
+    ".": "./index.js",
+    "./client": "./client.js",
+    "./package.json": "./package.json",
+    "./icon": "./icon.svg"
+  },
+  "files": [
+    "index.js",
+    "client.js",
+    "cordis.patch.yml",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": [
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-slots"
+      ]
+    }
+  },
+  "scripts": {
+    "test": "node tests/client.test.mjs"
+  }
+}
