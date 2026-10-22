@@ -1,6 +1,6 @@
 {
   "name": "dsh-nav-history",
-  "version": "0.2.3",
+  "version": "0.3.0",
   "type": "module",
   "description": "DeepSeek Harness plugin: global back/forward navigation history across whole-page panels and sessions, with a slim configurable bottom bar and browser-style shortcuts.",
   "keywords": [
@@ -57,6 +57,7 @@
     }
   },
   "scripts": {
-    "test": "node tests/client.test.mjs"
+    "build": "node scripts/build.mjs",
+    "test": "node scripts/build.mjs --check && node --test tests/history.test.mjs tests/apply.test.mjs tests/build.test.mjs"
   }
 }

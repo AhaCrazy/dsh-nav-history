@@ -78,6 +78,7 @@ dsh plugin --profile desktop add ./dsh-nav-history
 
 ## 更新记录
 
+- **0.3.0**：代码按职责拆分为 `src/` 下的多个 ES 模块（常量、文案、样式、工具、存储、历史控制器、快捷键、视图、装配），新增零依赖的 `scripts/build.mjs` 把模块拼装为浏览器所需的单文件 `client.js`；测试拆成 history / apply / build 三组，并加入 GitHub Actions 校验。行为不变。
 - **0.2.3**：新增「每个页面的最大宽度」配置项（64–320 px 滑块，默认 160 px），控制底栏中每条页面记录的最大显示宽度。
 - **0.2.2**：快捷键标题统一加前缀 `Nav History:`（如 `Nav History: 后退`），便于在「设置 → 通用 → 快捷键」中查找。
 - **0.2.1**：修复"后退到中间位置后再打开新页面，前进分支（d/e）没有被截断"的问题——恢复动作现在同步定案，若落点与记录条目略有差异只就地重写该条目，绝不会把光标挪到栈尾；因此后退后打开新页面会正确截断旧的前进分支。另加只读诊断句柄 `window.__dshNavHistory.dump()`。
@@ -87,8 +88,24 @@ dsh plugin --profile desktop add ./dsh-nav-history
 ## 开发
 
 ```sh
-node --check client.js
-node tests/client.test.mjs
+npm run build   # 从 src/ 重新生成 client.js
+npm test        # 校验 client.js 是最新的 + 运行三组测试
 ```
 
-`client.js` 是 `window.__ModuleLoader__.load` 形式的浏览器 bundle，测试用 React stub 捕获注册并直接验证历史栈逻辑（`internals` 导出）。
+代码结构：
+
+```
+src/
+  constants.js  版本、键名、上下限
+  locales.js    中英文案
+  styles.js     底栏 / 配置卡 CSS
+  utils.js      entryKey、位置读取、标题解析、偏好夹紧
+  storage.js    localStorage 读写
+  history.js    与 UI 无关的历史栈控制器（可单测）
+  shortcuts.js  快捷键注册、鼠标侧键
+  view.js       底栏与配置卡的 React 组件工厂
+  apply.js      组装模块并注册进 DSH 上下文
+scripts/build.mjs  零依赖打包：拼装为 window.__ModuleLoader__ 形式的 client.js
+```
+
+`client.js` 是生成产物（不要手改）；DSH 客户端加载器只接受单个普通脚本，所以构建脚本把 `src/` 下的 ES 模块按依赖顺序内联进 loader factory，再交给 `createClientModule(React)`。
