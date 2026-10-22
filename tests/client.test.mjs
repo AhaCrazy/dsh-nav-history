@@ -55,7 +55,7 @@ const plugin = registration === null
       throw new Error(`unexpected module request: ${id}`);
     });
 
-const { createNavHistory, readLocation, resolvePanelLabel, resolveSessionLabel, entryKey, clampVisible } = plugin.internals;
+const { createNavHistory, readLocation, resolvePanelLabel, resolveSessionLabel, entryKey, clampVisible, clampEntryWidth } = plugin.internals;
 
 /** Minimal controller harness: fake stores plus fake navigation APIs. */
 function createHarness(options = {}) {
@@ -69,6 +69,7 @@ function createHarness(options = {}) {
   const controller = createNavHistory({
     limit: options.limit ?? 10,
     maxVisible: options.maxVisible,
+    entryWidth: options.entryWidth,
     readLocation: () => ({ ...location }),
     openSession: (sessionId) => {
       calls.push(['open', sessionId]);
@@ -238,6 +239,29 @@ test('a restore that lands beside its entry keeps the cursor and still truncates
   assert.equal(harness.controller.getSnapshot().length, 2);
   assert.equal(harness.controller.getSnapshot().index, 1);
   assert.equal(harness.controller.getSnapshot().canForward, false);
+});
+
+test('per-entry width is bounded, persisted and exposed on the bar', () => {
+  assert.equal(clampEntryWidth(70), 72);
+  assert.equal(clampEntryWidth(0), 64);
+  assert.equal(clampEntryWidth(9999), 320);
+  assert.equal(clampEntryWidth('garbage'), 160);
+  assert.equal(clampEntryWidth(undefined), 160);
+
+  const harness = createHarness({ initial: { panelId: null, sessionId: 'a' }, maxVisible: 3, entryWidth: 160 });
+  harness.go({ panelId: null, sessionId: 'b' });
+  assert.equal(harness.controller.getEntryWidth(), 160);
+  assert.equal(harness.controller.getSnapshot().entryWidth, 160);
+
+  assert.equal(harness.controller.setEntryWidth(240), true);
+  assert.equal(harness.controller.getEntryWidth(), 240);
+  assert.equal(harness.controller.getSnapshot().entryWidth, 240);
+  assert.deepEqual(harness.settingsSink.at(-1), { maxVisible: 3, entryWidth: 240 });
+  assert.equal(harness.controller.setEntryWidth(240), false);
+  assert.equal(harness.controller.setEntryWidth(0), true);
+  assert.equal(harness.controller.getEntryWidth(), 64);
+  assert.equal(harness.controller.setEntryWidth(9999), true);
+  assert.equal(harness.controller.getEntryWidth(), 320);
 });
 
 test('a failed restore drops that entry and keeps the rest usable', () => {
@@ -450,6 +474,7 @@ test('apply registers the bottom bar, shortcuts and tracking subscriptions', () 
   assert.equal(backButton[0], 'button');
   assert.equal(backButton[1].disabled, true);
   assert.equal(forwardButton[1].disabled, true);
+  assert.equal(tree[5][1].style.maxWidth, '160px');
 
   // Opening the market panel records a second location; Back becomes available.
   state.panelId = 'market';
@@ -480,4 +505,16 @@ test('apply registers the bottom bar, shortcuts and tracking subscriptions', () 
   });
   const checked = rerendered[3][3].slice(2).find((button) => button[2] === '5');
   assert.equal(checked[1]['aria-checked'], true);
+
+  // The entry-width slider clamps through the controller and repaints the bar.
+  const widthRow = rerendered[5];
+  const widthInput = widthRow[3][2];
+  assert.equal(widthInput[1].type, 'range');
+  assert.equal(widthInput[1].min, 64);
+  assert.equal(widthInput[1].max, 320);
+  assert.equal(widthInput[1].value, 160);
+  widthInput[1].onChange({ target: { value: '240' } });
+  assert.equal(JSON.parse(storage.get('dsh.nav-history.settings.v1')).entryWidth, 240);
+  const barAfterWidth = barSlot.component({ t: (key) => key });
+  assert.equal(barAfterWidth[5][1].style.maxWidth, '240px');
 });

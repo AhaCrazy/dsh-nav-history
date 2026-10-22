@@ -26,7 +26,7 @@ window.__ModuleLoader__.load({
 
     const NS = 'nav-history';
     const PKG = 'dsh-nav-history';
-    const VERSION = '0.2.2';
+    const VERSION = '0.2.3';
     /** Prefix every shortcut title so the commands are easy to find in the shortcut list. */
     const LABEL_PREFIX = 'Nav History: ';
     const LIMIT = 100;
@@ -37,6 +37,11 @@ window.__ModuleLoader__.load({
     const MIN_VISIBLE = 1;
     const MAX_VISIBLE = 7;
     const DEFAULT_VISIBLE = 3;
+    /** Bounded per-entry width in CSS pixels, so one long title cannot swallow the strip. */
+    const MIN_ENTRY_WIDTH = 64;
+    const MAX_ENTRY_WIDTH = 320;
+    const WIDTH_STEP = 8;
+    const DEFAULT_ENTRY_WIDTH = 160;
 
     const zh = {
       back: '后退',
@@ -51,6 +56,9 @@ window.__ModuleLoader__.load({
         desc: '控制底部页面历史导航条最多同时显示多少个页面。',
         maxVisible: '最多显示条目数',
         hint: '设为 1 时只显示当前页面；大于 1 时显示当前页面前后的页面，可直接点击跳转。可选范围 1–7。',
+        entryWidth: '每个页面的最大宽度',
+        widthValue: '{width} px',
+        widthHint: '限制每个页面记录在导航条中的最大宽度，超出部分省略。可选范围 64–320 像素。',
         shortcuts: '「后退 / 前进」快捷键可在 设置 → 通用 → 快捷键 中查看和修改。',
       },
     };
@@ -67,6 +75,9 @@ window.__ModuleLoader__.load({
         desc: 'How many pages the bottom history strip shows at once.',
         maxVisible: 'Maximum visible entries',
         hint: 'Set to 1 to show only the current page. Above 1 the strip also shows neighbouring pages you can click. Allowed range: 1–7.',
+        entryWidth: 'Maximum width per page',
+        widthValue: '{width} px',
+        widthHint: 'Caps how wide one page entry may grow in the strip; longer titles are truncated. Allowed range: 64–320 px.',
         shortcuts: 'The Back / Forward shortcuts can be viewed and rebound in Settings → General → Shortcuts.',
       },
     };
@@ -249,6 +260,23 @@ window.__ModuleLoader__.load({
         outline: 2px solid var(--dsw-alias-brand-primary);
         outline-offset: 1px;
       }
+      .dnh-cfg-width {
+        display: inline-flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .dnh-cfg-width input[type='range'] {
+        width: 170px;
+        accent-color: var(--dsw-alias-brand-primary);
+        cursor: pointer;
+      }
+      .dnh-cfg-value {
+        min-width: 54px;
+        text-align: right;
+        font-size: 12px;
+        font-variant-numeric: tabular-nums;
+        color: var(--dsw-alias-label-secondary);
+      }
     `;
 
     // ------------------------------------------------------------------ utils
@@ -353,6 +381,15 @@ window.__ModuleLoader__.load({
       return Math.min(MAX_VISIBLE, Math.max(MIN_VISIBLE, Math.round(numeric)));
     }
 
+    /** Coerce a stored preference into the allowed MIN..MAX entry width, snapped to the slider step. */
+    function clampEntryWidth(value) {
+      if (value === null || value === undefined || value === '') return DEFAULT_ENTRY_WIDTH;
+      const numeric = Number(value);
+      if (!Number.isFinite(numeric)) return DEFAULT_ENTRY_WIDTH;
+      const snapped = Math.round(numeric / WIDTH_STEP) * WIDTH_STEP;
+      return Math.min(MAX_ENTRY_WIDTH, Math.max(MIN_ENTRY_WIDTH, snapped));
+    }
+
     // ---------------------------------------------------------------- history
 
     /**
@@ -370,6 +407,7 @@ window.__ModuleLoader__.load({
       let applying = null;
       let snapshot = null;
       let maxVisible = clampVisible(options.maxVisible);
+      let entryWidth = clampEntryWidth(options.entryWidth);
       const listeners = new Set();
 
       function current() {
@@ -438,6 +476,7 @@ window.__ModuleLoader__.load({
           panelId: location.panelId,
           sessionId: location.sessionId,
           maxVisible,
+          entryWidth,
           items,
         };
         const signature = items.map((item) => `${item.index}:${item.active ? 1 : 0}:${item.label}`).join('|');
@@ -451,6 +490,7 @@ window.__ModuleLoader__.load({
           snapshot.label === next.label &&
           snapshot.kind === next.kind &&
           snapshot.maxVisible === next.maxVisible &&
+          snapshot.entryWidth === next.entryWidth &&
           snapshot.signature === signature
         ) {
           return;
@@ -583,23 +623,40 @@ window.__ModuleLoader__.load({
       }
 
       /** Clamp and apply a new visible-entry preference; persisted by the caller. */
+      function persistPreferences() {
+        if (typeof options.persistSettings !== 'function') return;
+        try {
+          options.persistSettings({ maxVisible, entryWidth });
+        } catch (error) {
+          console.warn('[nav-history] settings persist failed:', error);
+        }
+      }
+
       function setMaxVisible(value) {
         const next = clampVisible(value);
         if (next === maxVisible) return false;
         maxVisible = next;
         publish(true);
-        if (typeof options.persistSettings === 'function') {
-          try {
-            options.persistSettings({ maxVisible });
-          } catch (error) {
-            console.warn('[nav-history] settings persist failed:', error);
-          }
-        }
+        persistPreferences();
         return true;
       }
 
       function getMaxVisible() {
         return maxVisible;
+      }
+
+      /** Clamp and apply a new per-entry maximum width in pixels. */
+      function setEntryWidth(value) {
+        const next = clampEntryWidth(value);
+        if (next === entryWidth) return false;
+        entryWidth = next;
+        publish(true);
+        persistPreferences();
+        return true;
+      }
+
+      function getEntryWidth() {
+        return entryWidth;
       }
 
       function load() {
@@ -649,6 +706,8 @@ window.__ModuleLoader__.load({
         jumpTo,
         setMaxVisible,
         getMaxVisible,
+        setEntryWidth,
+        getEntryWidth,
         getSnapshot: () => {
           if (snapshot === null) publish(true);
           return snapshot;
@@ -672,10 +731,13 @@ window.__ModuleLoader__.load({
       return function NavHistorySettings(props) {
         const t = props && typeof props.t === 'function' ? props.t : fallbackT;
         const [maxVisible, setMaxVisible] = React.useState(controller.getMaxVisible());
+        const [entryWidth, setEntryWidth] = React.useState(controller.getEntryWidth());
         React.useEffect(() => {
           let alive = true;
           const sync = () => {
-            if (alive) setMaxVisible(controller.getMaxVisible());
+            if (!alive) return;
+            setMaxVisible(controller.getMaxVisible());
+            setEntryWidth(controller.getEntryWidth());
           };
           const off = controller.subscribe(sync);
           sync();
@@ -727,6 +789,26 @@ window.__ModuleLoader__.load({
             ),
           ),
           h('p', { className: 'dnh-cfg-hint' }, t('config.hint')),
+          h(
+            'div',
+            { className: 'dnh-cfg-row' },
+            h('span', { className: 'dnh-cfg-label' }, t('config.entryWidth')),
+            h(
+              'div',
+              { className: 'dnh-cfg-width' },
+              h('input', {
+                type: 'range',
+                min: MIN_ENTRY_WIDTH,
+                max: MAX_ENTRY_WIDTH,
+                step: WIDTH_STEP,
+                value: entryWidth,
+                'aria-label': t('config.entryWidth'),
+                onChange: (event) => controller.setEntryWidth(Number(event.target.value)),
+              }),
+              h('span', { className: 'dnh-cfg-value' }, t('config.widthValue').replace('{width}', String(entryWidth))),
+            ),
+          ),
+          h('p', { className: 'dnh-cfg-hint' }, t('config.widthHint')),
           h('p', { className: 'dnh-cfg-hint' }, t('config.shortcuts')),
         );
       };
@@ -820,6 +902,7 @@ window.__ModuleLoader__.load({
               {
                 key: 'current',
                 className: snapshot.kind === 'panel' ? 'dnh-loc dnh-loc-panel' : 'dnh-loc',
+                style: { maxWidth: `${snapshot.entryWidth}px` },
                 title: (current && current.label) || snapshot.label || t('empty'),
               },
               (current && current.label) || snapshot.label || t('empty'),
@@ -834,6 +917,7 @@ window.__ModuleLoader__.load({
                   key: `entry-${item.index}`,
                   type: 'button',
                   className: `dnh-item${item.active ? ' dnh-item-active' : ''}${item.kind === 'panel' ? ' dnh-item-panel' : ''}`,
+                  style: { maxWidth: `${snapshot.entryWidth}px` },
                   title: item.label || t('empty'),
                   'aria-current': item.active ? 'page' : undefined,
                   onClick: () => controller.jumpTo(item.index),
@@ -980,19 +1064,30 @@ window.__ModuleLoader__.load({
     /** Persisted, range-checked preferences. */
     function loadSettings() {
       try {
-        if (typeof localStorage === 'undefined') return { maxVisible: DEFAULT_VISIBLE };
+        if (typeof localStorage === 'undefined') {
+          return { maxVisible: DEFAULT_VISIBLE, entryWidth: DEFAULT_ENTRY_WIDTH };
+        }
         const raw = localStorage.getItem(SETTINGS_KEY);
         const parsed = raw === null ? null : JSON.parse(raw);
-        return { maxVisible: parsed === null ? DEFAULT_VISIBLE : clampVisible(parsed.maxVisible) };
+        return {
+          maxVisible: parsed === null ? DEFAULT_VISIBLE : clampVisible(parsed.maxVisible),
+          entryWidth: parsed === null ? DEFAULT_ENTRY_WIDTH : clampEntryWidth(parsed.entryWidth),
+        };
       } catch (error) {
-        return { maxVisible: DEFAULT_VISIBLE };
+        return { maxVisible: DEFAULT_VISIBLE, entryWidth: DEFAULT_ENTRY_WIDTH };
       }
     }
 
     function saveSettings(settings) {
       try {
         if (typeof localStorage === 'undefined') return;
-        localStorage.setItem(SETTINGS_KEY, JSON.stringify({ maxVisible: clampVisible(settings && settings.maxVisible) }));
+        localStorage.setItem(
+          SETTINGS_KEY,
+          JSON.stringify({
+            maxVisible: clampVisible(settings && settings.maxVisible),
+            entryWidth: clampEntryWidth(settings && settings.entryWidth),
+          }),
+        );
       } catch (error) {
         // storage quota / privacy mode: settings stay in memory only
       }
@@ -1023,6 +1118,7 @@ window.__ModuleLoader__.load({
       const controller = createNavHistory({
         limit: LIMIT,
         maxVisible: settings.maxVisible,
+        entryWidth: settings.entryWidth,
         readLocation: () => readLocation(ctx),
         openSession: (sessionId) => {
           if (ctx.uiWorkspace && typeof ctx.uiWorkspace.openSession === 'function') {
@@ -1105,6 +1201,7 @@ window.__ModuleLoader__.load({
         version: VERSION,
         entries: controller.getSnapshot().length,
         maxVisible: controller.getMaxVisible(),
+        entryWidth: controller.getEntryWidth(),
       });
       if (typeof window !== 'undefined') {
         try {
@@ -1114,6 +1211,7 @@ window.__ModuleLoader__.load({
             dump: () => ({
               index: controller.index(),
               maxVisible: controller.getMaxVisible(),
+              entryWidth: controller.getEntryWidth(),
               entries: controller.entries(),
             }),
             back: controller.back,
@@ -1136,9 +1234,13 @@ window.__ModuleLoader__.load({
         resolveSessionLabel,
         entryKey,
         clampVisible,
+        clampEntryWidth,
         MIN_VISIBLE,
         MAX_VISIBLE,
         DEFAULT_VISIBLE,
+        MIN_ENTRY_WIDTH,
+        MAX_ENTRY_WIDTH,
+        DEFAULT_ENTRY_WIDTH,
         zh,
         en,
       },
