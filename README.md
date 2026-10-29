@@ -21,6 +21,12 @@ DSH 本身没有 URL 路由，也没有浏览历史：切换会话或整页面�
 
 ## 安装
 
+从 npm 安装（推荐，大陆网络可直接使用镜像）：
+
+```sh
+dsh plugin --profile desktop add dsh-nav-history
+```
+
 从 GitHub 安装（DSH 桌面版 profile `desktop`）：
 
 ```sh
