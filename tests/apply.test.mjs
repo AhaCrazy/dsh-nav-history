@@ -125,8 +125,10 @@ test('apply registers the bottom bar, shortcuts and tracking subscriptions', () 
   assert.deepEqual(nextMessage.defaults['desktop:windows'], { code: 'ArrowDown', modifiers: ['alt'] });
   assert.ok(prevMessage.aliases.includes('nav history previous message'));
   assert.ok(nextMessage.aliases.includes('nav history next message'));
-  // The composer's editor owns Alt+Up/Down, so the shortcut passes there.
-  assert.equal(prevMessage.resolve({ region: 'editable' }).status, 'pass');
+  // The shortcut also handles presses while the composer has focus; the
+  // desktop keyboard bridge consumes the key before the editor sees it, so the
+  // caret/paragraph editing path is not entered and focus stays put.
+  assert.equal(prevMessage.resolve({ region: 'editable' }).status, 'handled');
   assert.equal(prevMessage.resolve({ region: 'page' }).status, 'handled');
   assert.ok(effectLabels.includes('nav-history: tracking'));
 
