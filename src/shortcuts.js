@@ -1,4 +1,5 @@
 import { LABEL_PREFIX } from './constants.js';
+import { navigateUserMessage } from './conversation.js';
 
 function installMouseButtons(controller) {
   if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return () => {};
@@ -57,6 +58,26 @@ function registerShortcuts(ctx, controller, t) {
       mac: { code: 'BracketRight', modifiers: ['primary'] },
       run: () => controller.forward(),
     },
+    {
+      id: 'nav-history.prev-message',
+      labelKey: 'prevMessage',
+      aliases: ['previous message', 'prev message', '上一条用户消息', '上一条消息', 'nav history previous message'],
+      win: { code: 'ArrowUp', modifiers: ['alt'] },
+      mac: { code: 'ArrowUp', modifiers: ['alt'] },
+      // In the composer the editor owns Alt+Up/Down (paragraph move), so pass
+      // the key through whenever focus is inside an editable element.
+      passInEditable: true,
+      run: () => navigateUserMessage('up'),
+    },
+    {
+      id: 'nav-history.next-message',
+      labelKey: 'nextMessage',
+      aliases: ['next message', '下一条用户消息', '下一条消息', 'nav history next message'],
+      win: { code: 'ArrowDown', modifiers: ['alt'] },
+      mac: { code: 'ArrowDown', modifiers: ['alt'] },
+      passInEditable: true,
+      run: () => navigateUserMessage('down'),
+    },
   ];
   for (const binding of bindings) {
     try {
@@ -71,10 +92,11 @@ function registerShortcuts(ctx, controller, t) {
           },
           regions: ['page', 'editable'],
           modals: [],
-          resolve: () => ({
-            status: 'handled',
-            run: binding.run,
-          }),
+          resolve: (context) => (
+            binding.passInEditable && context && context.region === 'editable'
+              ? { status: 'pass' }
+              : { status: 'handled', run: binding.run }
+          ),
         }),
       );
     } catch (error) {

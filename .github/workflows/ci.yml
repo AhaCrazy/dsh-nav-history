@@ -19,4 +19,4 @@ jobs:
       - name: Bundle is generated from src/
         run: node scripts/build.mjs --check
       - name: Tests
-        run: node --test tests/history.test.mjs tests/apply.test.mjs tests/build.test.mjs
+        run: node --test tests/history.test.mjs tests/conversation.test.mjs tests/apply.test.mjs tests/build.test.mjs

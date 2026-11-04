@@ -23,6 +23,7 @@ const MODULES = [
   'src/utils.js',
   'src/storage.js',
   'src/history.js',
+  'src/conversation.js',
   'src/shortcuts.js',
   'src/view.js',
   'src/apply.js',

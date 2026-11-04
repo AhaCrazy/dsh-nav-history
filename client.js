@@ -5,7 +5,7 @@ window.__ModuleLoader__.load({
     const React = require('react');
   const NS = 'nav-history';
   const PKG = 'dsh-nav-history';
-  const VERSION = '0.3.0';
+  const VERSION = '0.4.0';
   /** Prefix every shortcut title so the commands are easy to find in the shortcut list. */
   const LABEL_PREFIX = 'Nav History: ';
   const LIMIT = 100;
@@ -33,6 +33,8 @@ window.__ModuleLoader__.load({
     bar: '页面历史导航',
     hint: 'Alt+← / Alt+→',
     count: '{index}/{total}',
+    prevMessage: '上一条用户消息',
+    nextMessage: '下一条用户消息',
     config: {
       title: '导航栏',
       desc: '控制底部页面历史导航条最多同时显示多少个页面。',
@@ -41,7 +43,7 @@ window.__ModuleLoader__.load({
       entryWidth: '每个页面的最大宽度',
       widthValue: '{width} px',
       widthHint: '限制每个页面记录在导航条中的最大宽度，超出部分省略。可选范围 64–320 像素。',
-      shortcuts: '「后退 / 前进」快捷键可在 设置 → 通用 → 快捷键 中查看和修改。',
+      shortcuts: '「后退 / 前进 / 上一条用户消息 / 下一条用户消息」快捷键可在 设置 → 通用 → 快捷键 中查看和修改。',
     },
   };
   const en = {
@@ -52,6 +54,8 @@ window.__ModuleLoader__.load({
     bar: 'Navigation history',
     hint: 'Alt+Left / Alt+Right',
     count: '{index}/{total}',
+    prevMessage: 'Previous user message',
+    nextMessage: 'Next user message',
     config: {
       title: 'Navigation bar',
       desc: 'How many pages the bottom history strip shows at once.',
@@ -60,7 +64,7 @@ window.__ModuleLoader__.load({
       entryWidth: 'Maximum width per page',
       widthValue: '{width} px',
       widthHint: 'Caps how wide one page entry may grow in the strip; longer titles are truncated. Allowed range: 64–320 px.',
-      shortcuts: 'The Back / Forward shortcuts can be viewed and rebound in Settings → General → Shortcuts.',
+      shortcuts: 'The Back / Forward / Previous message / Next message shortcuts can be viewed and rebound in Settings → General → Shortcuts.',
     },
   };
 
@@ -258,6 +262,19 @@ window.__ModuleLoader__.load({
       font-size: 12px;
       font-variant-numeric: tabular-nums;
       color: var(--dsw-alias-label-secondary);
+    }
+    .dnh-turn-flash {
+      animation: dnh-turn-flash 1.4s ease-out;
+    }
+    @keyframes dnh-turn-flash {
+      0% {
+        box-shadow: inset 0 0 0 2px var(--dsw-alias-brand-primary);
+        border-radius: 8px;
+      }
+      100% {
+        box-shadow: inset 0 0 0 2px transparent;
+        border-radius: 8px;
+      }
     }
   `;
 
@@ -746,6 +763,158 @@ window.__ModuleLoader__.load({
     };
   }
 
+  /**
+   * Conversation-level navigation: jump the transcript to the previous/next
+   * user message by moving the chat scrollport to that turn's row.
+   *
+   * DSH renders every turn inside `[data-conversation-scroll]` as
+   * `[data-chat-turn="N"]` rows, so no private client service is needed: the
+   * published DOM is the contract here. The row for a turn starts with the
+   * user's message, which is exactly the anchor the shortcut wants.
+   */
+
+  const TURN_FLASH_CLASS = 'dnh-turn-flash';
+  const SCROLLPORT_SELECTOR = '[data-conversation-scroll]';
+  const TURN_ROW_SELECTOR = '[data-chat-turn]';
+  const ALIGN_OFFSET = 24;
+  const FLASH_MS = 1400;
+
+  function isRendered(element) {
+    if (
+      !element
+      || typeof element.getBoundingClientRect !== 'function'
+      || (typeof element.hasAttribute === 'function' && element.hasAttribute('hidden'))
+    ) {
+      return false;
+    }
+    try {
+      const rect = element.getBoundingClientRect();
+      return rect.height > 0 && rect.width > 0;
+    } catch (error) {
+      return false;
+    }
+  }
+
+  /** Index of the turn row currently crossing the viewport's top edge. */
+  function turnAtAnchor(rows, anchorY) {
+    if (!Array.isArray(rows) || rows.length === 0) return null;
+    for (const row of rows) {
+      if (row.bottom > anchorY) return row.turn;
+    }
+    return rows[rows.length - 1].turn;
+  }
+
+  /** Nearest turn above/below the current one; null when there is nowhere to go. */
+  function adjacentTurn(turns, current, direction) {
+    if (!Array.isArray(turns) || turns.length === 0 || current === null) return null;
+    if (direction === 'up') {
+      let candidate = null;
+      for (const turn of turns) {
+        if (turn < current) candidate = turn;
+        else break;
+      }
+      return candidate;
+    }
+    for (const turn of turns) {
+      if (turn > current) return turn;
+    }
+    return null;
+  }
+
+  /** Locate the visible chat surface: its scrollport plus the rendered turn rows. */
+  function findChatSurface(doc = typeof document === 'undefined' ? null : document) {
+    if (!doc || typeof doc.querySelectorAll !== 'function') return null;
+    let ports;
+    try {
+      ports = [...doc.querySelectorAll(SCROLLPORT_SELECTOR)];
+    } catch (error) {
+      return null;
+    }
+    for (const scrollport of ports) {
+      if (!isRendered(scrollport)) continue;
+      const seen = new Set();
+      const rows = [];
+      for (const row of scrollport.querySelectorAll(TURN_ROW_SELECTOR)) {
+        if (!isRendered(row)) continue;
+        const turn = Number(row.getAttribute('data-chat-turn'));
+        if (!Number.isSafeInteger(turn) || seen.has(turn)) continue;
+        seen.add(turn);
+        rows.push({ turn, row });
+      }
+      if (rows.length === 0) continue;
+      rows.sort((left, right) => left.turn - right.turn);
+      return { scrollport, rows };
+    }
+    return null;
+  }
+
+  /** Turn row currently at the top of the scrollport, accounting for its own offset. */
+  function currentTurnOf(surface) {
+    if (!surface) return null;
+    const portRect = surface.scrollport.getBoundingClientRect();
+    const anchorY = portRect.top + Math.min(ALIGN_OFFSET, Math.max(1, portRect.height * 0.1));
+    const rows = surface.rows.map(({ turn, row }) => {
+      const rect = row.getBoundingClientRect();
+      return { turn, top: rect.top, bottom: rect.bottom };
+    });
+    return turnAtAnchor(rows, anchorY);
+  }
+
+  /** The row to land on for one direction, or null when the transcript has no such turn. */
+  function pickTurn(surface, direction) {
+    if (!surface || !Array.isArray(surface.rows) || surface.rows.length === 0) return null;
+    const current = currentTurnOf(surface);
+    if (current === null) return null;
+    const target = adjacentTurn(surface.rows.map((item) => item.turn), current, direction);
+    if (target === null) return null;
+    return surface.rows.find((item) => item.turn === target) ?? null;
+  }
+
+  function flash(row) {
+    try {
+      row.classList.add(TURN_FLASH_CLASS);
+      setTimeout(() => {
+        try {
+          row.classList.remove(TURN_FLASH_CLASS);
+        } catch (error) {
+          // the row may have been unmounted by virtualization
+        }
+      }, FLASH_MS);
+    } catch (error) {
+      // highlighting is cosmetic
+    }
+  }
+
+  /** Scroll one turn row below the scrollport's top edge and briefly highlight it. */
+  function scrollToTurn(surface, target) {
+    if (!surface || !target) return false;
+    const port = surface.scrollport;
+    const portRect = port.getBoundingClientRect();
+    const rowRect = target.row.getBoundingClientRect();
+    const top = Math.max(0, port.scrollTop + rowRect.top - portRect.top - ALIGN_OFFSET);
+    try {
+      if (typeof port.scrollTo === 'function') port.scrollTo({ top, behavior: 'smooth' });
+      else port.scrollTop = top;
+    } catch (error) {
+      try {
+        port.scrollTop = top;
+      } catch (ignored) {
+        return false;
+      }
+    }
+    flash(target.row);
+    return true;
+  }
+
+  /** Shortcut action: move the transcript to the previous/next user message. */
+  function navigateUserMessage(direction, doc) {
+    const surface = findChatSurface(doc);
+    if (!surface) return false;
+    const target = pickTurn(surface, direction === 'up' ? 'up' : 'down');
+    if (target === null) return false;
+    return scrollToTurn(surface, target);
+  }
+
   function installMouseButtons(controller) {
     if (typeof window === 'undefined' || typeof window.addEventListener !== 'function') return () => {};
     const onDown = (event) => {
@@ -803,6 +972,26 @@ window.__ModuleLoader__.load({
         mac: { code: 'BracketRight', modifiers: ['primary'] },
         run: () => controller.forward(),
       },
+      {
+        id: 'nav-history.prev-message',
+        labelKey: 'prevMessage',
+        aliases: ['previous message', 'prev message', '上一条用户消息', '上一条消息', 'nav history previous message'],
+        win: { code: 'ArrowUp', modifiers: ['alt'] },
+        mac: { code: 'ArrowUp', modifiers: ['alt'] },
+        // In the composer the editor owns Alt+Up/Down (paragraph move), so pass
+        // the key through whenever focus is inside an editable element.
+        passInEditable: true,
+        run: () => navigateUserMessage('up'),
+      },
+      {
+        id: 'nav-history.next-message',
+        labelKey: 'nextMessage',
+        aliases: ['next message', '下一条用户消息', '下一条消息', 'nav history next message'],
+        win: { code: 'ArrowDown', modifiers: ['alt'] },
+        mac: { code: 'ArrowDown', modifiers: ['alt'] },
+        passInEditable: true,
+        run: () => navigateUserMessage('down'),
+      },
     ];
     for (const binding of bindings) {
       try {
@@ -817,10 +1006,11 @@ window.__ModuleLoader__.load({
             },
             regions: ['page', 'editable'],
             modals: [],
-            resolve: () => ({
-              status: 'handled',
-              run: binding.run,
-            }),
+            resolve: (context) => (
+              binding.passInEditable && context && context.region === 'editable'
+                ? { status: 'pass' }
+                : { status: 'handled', run: binding.run }
+            ),
           }),
         );
       } catch (error) {

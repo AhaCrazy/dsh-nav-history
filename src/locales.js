@@ -6,6 +6,8 @@ const zh = {
   bar: '页面历史导航',
   hint: 'Alt+← / Alt+→',
   count: '{index}/{total}',
+  prevMessage: '上一条用户消息',
+  nextMessage: '下一条用户消息',
   config: {
     title: '导航栏',
     desc: '控制底部页面历史导航条最多同时显示多少个页面。',
@@ -14,7 +16,7 @@ const zh = {
     entryWidth: '每个页面的最大宽度',
     widthValue: '{width} px',
     widthHint: '限制每个页面记录在导航条中的最大宽度，超出部分省略。可选范围 64–320 像素。',
-    shortcuts: '「后退 / 前进」快捷键可在 设置 → 通用 → 快捷键 中查看和修改。',
+    shortcuts: '「后退 / 前进 / 上一条用户消息 / 下一条用户消息」快捷键可在 设置 → 通用 → 快捷键 中查看和修改。',
   },
 };
 const en = {
@@ -25,6 +27,8 @@ const en = {
   bar: 'Navigation history',
   hint: 'Alt+Left / Alt+Right',
   count: '{index}/{total}',
+  prevMessage: 'Previous user message',
+  nextMessage: 'Next user message',
   config: {
     title: 'Navigation bar',
     desc: 'How many pages the bottom history strip shows at once.',
@@ -33,7 +37,7 @@ const en = {
     entryWidth: 'Maximum width per page',
     widthValue: '{width} px',
     widthHint: 'Caps how wide one page entry may grow in the strip; longer titles are truncated. Allowed range: 64–320 px.',
-    shortcuts: 'The Back / Forward shortcuts can be viewed and rebound in Settings → General → Shortcuts.',
+    shortcuts: 'The Back / Forward / Previous message / Next message shortcuts can be viewed and rebound in Settings → General → Shortcuts.',
   },
 };
 

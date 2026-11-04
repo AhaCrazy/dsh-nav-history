@@ -193,6 +193,19 @@ const CSS = `
     font-variant-numeric: tabular-nums;
     color: var(--dsw-alias-label-secondary);
   }
+  .dnh-turn-flash {
+    animation: dnh-turn-flash 1.4s ease-out;
+  }
+  @keyframes dnh-turn-flash {
+    0% {
+      box-shadow: inset 0 0 0 2px var(--dsw-alias-brand-primary);
+      border-radius: 8px;
+    }
+    100% {
+      box-shadow: inset 0 0 0 2px transparent;
+      border-radius: 8px;
+    }
+  }
 `;
 
 export { CSS };

@@ -102,19 +102,32 @@ test('apply registers the bottom bar, shortcuts and tracking subscriptions', () 
   assert.equal(configSlot.options.key, 'dsh-nav-history');
   assert.equal(typeof configSlot.component, 'function');
 
-  assert.deepEqual(registeredShortcuts.map((item) => item.id).sort(), ['nav-history.back', 'nav-history.forward']);
+  assert.deepEqual(
+    registeredShortcuts.map((item) => item.id).sort(),
+    ['nav-history.back', 'nav-history.forward', 'nav-history.next-message', 'nav-history.prev-message'],
+  );
   const shortcutLabels = Object.fromEntries(registeredShortcuts.map((item) => [item.id, item.label()]));
   assert.equal(shortcutLabels['nav-history.back'], 'Nav History: back');
   assert.equal(shortcutLabels['nav-history.forward'], 'Nav History: forward');
+  assert.equal(shortcutLabels['nav-history.prev-message'], 'Nav History: prevMessage');
+  assert.equal(shortcutLabels['nav-history.next-message'], 'Nav History: nextMessage');
   for (const shortcut of registeredShortcuts) {
-    assert.ok(shortcut.aliases.includes(`nav history ${shortcut.id.split('.').pop()}`));
     assert.ok(shortcut.defaults['desktop:windows']);
     assert.ok(shortcut.defaults['desktop:macos']);
-    // Web/Linux defaults are omitted on purpose: ArrowLeft/ArrowRight are
-    // reserved there and would make the whole registration throw.
+    // Web/Linux defaults are omitted on purpose: the arrow keys are reserved
+    // there and would make the whole registration throw.
     assert.equal(shortcut.defaults['web:windows'], undefined);
     assert.equal(shortcut.defaults['desktop:linux'], undefined);
   }
+  const prevMessage = registeredShortcuts.find((item) => item.id === 'nav-history.prev-message');
+  const nextMessage = registeredShortcuts.find((item) => item.id === 'nav-history.next-message');
+  assert.deepEqual(prevMessage.defaults['desktop:windows'], { code: 'ArrowUp', modifiers: ['alt'] });
+  assert.deepEqual(nextMessage.defaults['desktop:windows'], { code: 'ArrowDown', modifiers: ['alt'] });
+  assert.ok(prevMessage.aliases.includes('nav history previous message'));
+  assert.ok(nextMessage.aliases.includes('nav history next message'));
+  // The composer's editor owns Alt+Up/Down, so the shortcut passes there.
+  assert.equal(prevMessage.resolve({ region: 'editable' }).status, 'pass');
+  assert.equal(prevMessage.resolve({ region: 'page' }).status, 'handled');
   assert.ok(effectLabels.includes('nav-history: tracking'));
 
   // The bar renders and its buttons stay disabled until there is somewhere to go.
