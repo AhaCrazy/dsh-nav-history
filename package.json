@@ -1,6 +1,6 @@
 {
   "name": "dsh-nav-history",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "type": "module",
   "description": "DeepSeek Harness plugin: global back/forward navigation across whole-page panels and sessions, plus Alt+Up/Down jumps between user messages, with a slim configurable bottom bar and browser-style shortcuts.",
   "keywords": [

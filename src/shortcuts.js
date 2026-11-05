@@ -37,8 +37,7 @@ function installMouseButtons(controller) {
   };
 }
 
-function registerShortcuts(ctx, controller, t) {
-  const shortcuts = ctx.shortcuts;
+function registerShortcuts(ctx, controller, t) {  const shortcuts = ctx.shortcuts;
   if (!shortcuts || typeof shortcuts.register !== 'function') return () => {};
   const disposers = [];
   const bindings = [
@@ -88,7 +87,16 @@ function registerShortcuts(ctx, controller, t) {
           },
           regions: ['page', 'editable'],
           modals: [],
-          resolve: () => ({ status: 'handled', run: binding.run }),
+          resolve: (context) => {
+            if (binding.id === 'nav-history.prev-message' || binding.id === 'nav-history.next-message') {
+              try {
+                console.info('[nav-history] shortcut dispatched', binding.id, context && context.region);
+              } catch (error) {
+                // diagnostics are optional
+              }
+            }
+            return { status: 'handled', run: binding.run };
+          },
         }),
       );
     } catch (error) {
@@ -99,6 +107,72 @@ function registerShortcuts(ctx, controller, t) {
     for (const dispose of disposers) {
       try {
         dispose();
+      } catch (error) {
+        // ignore
+      }
+    }
+  };
+}
+
+const REPEAT_INTERVAL_MS = 90;
+
+function bindingMatchesInput(binding, input) {
+  if (!binding || binding.code !== input.code || binding.secondCode !== undefined) return false;
+  const modifiers = ['control', 'alt', 'shift', 'meta'].filter((name) => input[name]);
+  const expected = binding.modifiers || [];
+  return modifiers.length === expected.length && modifiers.every((name) => expected.includes(name));
+}
+
+/** Direction for one native key-repeat input, or null when it is not ours. */
+export function repeatDirection(rows, input) {
+  if (!input || input.repeat !== true || input.kind !== 'keyboard') return null;
+  for (const row of Array.isArray(rows) ? rows : []) {
+    if (!row || !row.binding) continue;
+    if (!bindingMatchesInput(row.binding, input)) continue;
+    if (row.id === 'nav-history.prev-message') return 'up';
+    if (row.id === 'nav-history.next-message') return 'down';
+  }
+  return null;
+}
+
+/**
+ * The shortcut registry suppresses `run` for key repeats, so holding the key
+ * would step exactly once. The native keyboard bridge still delivers those
+ * repeats; subscribe to it and step again, throttled so a held key walks the
+ * transcript instead of racing through it.
+ */
+export function installRepeatNavigation(ctx) {
+  if (typeof window === 'undefined') return () => {};
+  const keyboard = window.dshDesktop && window.dshDesktop.keyboard;
+  if (!keyboard || typeof keyboard.subscribe !== 'function') return () => {};
+  const catalog = ctx && ctx.shortcuts && ctx.shortcuts.catalog;
+  if (!catalog || typeof catalog.getSnapshot !== 'function') return () => {};
+  let rows = catalog.getSnapshot() || [];
+  const offCatalog = typeof catalog.subscribe === 'function'
+    ? catalog.subscribe(() => {
+        rows = catalog.getSnapshot() || [];
+      })
+    : null;
+  let lastAt = 0;
+  const unsubscribe = keyboard.subscribe((input) => {
+    const direction = repeatDirection(rows, input);
+    if (direction === null) return;
+    const now = Date.now();
+    if (now - lastAt < REPEAT_INTERVAL_MS) return;
+    lastAt = now;
+    navigateUserMessage(direction);
+  });
+  return () => {
+    if (typeof offCatalog === 'function') {
+      try {
+        offCatalog();
+      } catch (error) {
+        // ignore
+      }
+    }
+    if (typeof unsubscribe === 'function') {
+      try {
+        unsubscribe();
       } catch (error) {
         // ignore
       }

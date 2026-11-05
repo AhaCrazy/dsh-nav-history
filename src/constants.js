@@ -1,6 +1,6 @@
 export const NS = 'nav-history';
 export const PKG = 'dsh-nav-history';
-export const VERSION = '0.4.1';
+export const VERSION = '0.4.2';
 /** Prefix every shortcut title so the commands are easy to find in the shortcut list. */
 export const LABEL_PREFIX = 'Nav History: ';
 export const LIMIT = 100;
