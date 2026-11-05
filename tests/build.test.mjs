@@ -24,6 +24,9 @@ test('the generated bundle registers the client module without ESM syntax', () =
   assert.match(source, /shell\.bottom/);
   assert.match(source, /nav-history\.back/);
   assert.match(source, /nav-history\.forward/);
+  // The bottom bar measures fixed overlays and pads in through these variables.
+  assert.match(source, /installBarInsets\(/);
+  assert.match(source, /var\(--dnh-inset-left, 0px\)/);
   // The client loader evaluates a plain script, not a module.
   assert.doesNotMatch(source, /^import\s/m);
   assert.doesNotMatch(source, /^\s*export\s/m);

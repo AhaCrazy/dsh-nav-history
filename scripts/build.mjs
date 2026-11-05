@@ -25,6 +25,7 @@ const MODULES = [
   'src/history.js',
   'src/conversation.js',
   'src/shortcuts.js',
+  'src/insets.js',
   'src/view.js',
   'src/apply.js',
 ];

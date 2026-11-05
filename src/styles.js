@@ -6,6 +6,12 @@ const CSS = `
     gap: 4px;
     height: 30px;
     padding: 0 10px;
+    /* Fixed overlays can cover the shell's edges (ds-bot's portalled left
+       column); src/insets.js measures the main column and pads in by that
+       amount. Both variables fall back to 0, so a missing selector restores
+       the plain bar. */
+    padding-left: calc(10px + var(--dnh-inset-left, 0px));
+    padding-right: calc(10px + var(--dnh-inset-right, 0px));
     font: inherit;
     font-size: 11.5px;
     line-height: 1;

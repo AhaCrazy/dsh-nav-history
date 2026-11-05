@@ -1,4 +1,5 @@
 import { MAX_ENTRY_WIDTH, MAX_VISIBLE, MIN_ENTRY_WIDTH, MIN_VISIBLE, WIDTH_STEP } from './constants.js';
+import { installBarInsets } from './insets.js';
 
 /**
  * Plugin-detail configuration card. `React` is injected by the caller so this
@@ -125,6 +126,39 @@ function createNavIcon(React) {
 function createNavBar(React, controller, fallbackT) {
   const h = React.createElement;
   const NavIcon = createNavIcon(React);
+  // The ref callback is created once so React only calls it on mount/unmount;
+  // an inline one would re-measure on every history change.
+  let barNode = null;
+  let releaseInsets = null;
+  const attachBar = (node) => {
+    if (!node) {
+      if (typeof releaseInsets === 'function') {
+        try {
+          releaseInsets();
+        } catch (error) {
+          // ignore
+        }
+        releaseInsets = null;
+      }
+      barNode = null;
+      return;
+    }
+    if (barNode === node && typeof releaseInsets === 'function') return;
+    if (typeof releaseInsets === 'function') {
+      try {
+        releaseInsets();
+      } catch (error) {
+        // ignore
+      }
+      releaseInsets = null;
+    }
+    barNode = node;
+    try {
+      releaseInsets = installBarInsets(node);
+    } catch (error) {
+      releaseInsets = null;
+    }
+  };
   return function NavBar(props) {
     const t = props && typeof props.t === 'function' ? props.t : fallbackT;
     const [snapshot, setSnapshot] = React.useState(controller.getSnapshot());
@@ -223,6 +257,7 @@ function createNavBar(React, controller, fallbackT) {
         role: 'toolbar',
         'aria-label': t('bar'),
         'data-dsh-nav-history': 'bar',
+        ref: attachBar,
       },
       ...children,
     );

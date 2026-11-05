@@ -59,6 +59,6 @@
   },
   "scripts": {
     "build": "node scripts/build.mjs",
-    "test": "node scripts/build.mjs --check && node --test tests/history.test.mjs tests/conversation.test.mjs tests/apply.test.mjs tests/build.test.mjs"
+    "test": "node scripts/build.mjs --check && node --test tests/history.test.mjs tests/conversation.test.mjs tests/apply.test.mjs tests/insets.test.mjs tests/build.test.mjs"
   }
 }
